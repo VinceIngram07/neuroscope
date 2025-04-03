@@ -2,9 +2,60 @@ import * as d3 from "d3";
 
 export const BandPowerVis = class {
   constructor() {
-    //this.width = window.innerWidth * 0.4;
-    //this.height = window.innerHeight * 0.09;
-    // set the dimensions and margins of the graph
+    this.currentVisualization = "focus"; // Default visualization
+    this.initFocusVisualization();
+  }
+
+  initFocusVisualization() {
+    d3.select("#bands").html(""); // Clear the container
+
+    // Set the dimensions and margins of the graph
+    var margin = { top: 30, right: 30, bottom: 70, left: 60 };
+    this.width = window.innerWidth * 0.4 - margin.left - margin.right;
+    this.height = window.innerHeight * 0.4 - margin.top - margin.bottom;
+    this.init_data = [{ group: "Focus", value: 1 }];
+    this.svg = d3
+      .select("#bands")
+      .append("svg")
+      .attr("width", this.width + margin.left + margin.right)
+      .attr("height", this.height + margin.top + margin.bottom)
+      .append("g")
+      .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    // Add X axis
+    this.x = d3
+      .scaleBand()
+      .range([0, this.width])
+      .domain(
+        this.init_data.map(function (d) {
+          return d.group;
+        })
+      )
+      .padding(0.2);
+
+    this.svg
+      .append("g")
+      .attr("transform", "translate(0," + this.height + ")")
+      .call(d3.axisBottom(this.x));
+
+    // Add Y axis
+    this.y = d3.scaleLinear().domain([0, 2]).range([this.height, 0]);
+    this.svg.append("g").attr("class", "myYaxis").call(d3.axisLeft(this.y));
+
+    // Add title
+    this.svg
+      .append("text")
+      .attr("x", this.width / 2)
+      .attr("y", -10)
+      .attr("text-anchor", "middle")
+      .style("font-size", "16px")
+      .text("Focus Ratio");
+  }
+
+  initBandVisualization() {
+    d3.select("#bands").html(""); // Clear the container
+
+    // Set the dimensions and margins of the graph
     var margin = { top: 30, right: 30, bottom: 70, left: 60 };
     this.width = window.innerWidth * 0.4 - margin.left - margin.right;
     this.height = window.innerHeight * 0.4 - margin.top - margin.bottom;
@@ -13,7 +64,7 @@ export const BandPowerVis = class {
       { group: "Theta", value: 1 },
       { group: "Alpha", value: 1 },
       { group: "Beta", value: 1 },
-      { group: "Gamma", value: 1 }
+      { group: "Gamma", value: 1 },
     ];
     this.svg = d3
       .select("#bands")
@@ -42,6 +93,25 @@ export const BandPowerVis = class {
     // Add Y axis
     this.y = d3.scaleLinear().domain([0, 100]).range([this.height, 0]);
     this.svg.append("g").attr("class", "myYaxis").call(d3.axisLeft(this.y));
+
+    // Add title
+    this.svg
+      .append("text")
+      .attr("x", this.width / 2)
+      .attr("y", -10)
+      .attr("text-anchor", "middle")
+      .style("font-size", "16px")
+      .text("Band Power");
+  }
+
+  toggleVisualization() {
+    if (this.currentVisualization === "focus") {
+      this.currentVisualization = "band";
+      this.initBandVisualization();
+    } else {
+      this.currentVisualization = "focus";
+      this.initFocusVisualization();
+    }
   }
 
   update(data) {
@@ -74,7 +144,7 @@ export const BandPowerVis = class {
       { group: "Theta", value: data.theta },
       { group: "Alpha", value: data.alpha },
       { group: "Beta", value: data.beta },
-      { group: "Gamma", value: data.gamma }
+      { group: "Gamma", value: data.gamma },
     ];
   }
 };

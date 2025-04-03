@@ -42,3 +42,11 @@ export const NeuroScope = class {
 };
 
 let neuroScope = new NeuroScope();
+
+const bandPowerVis = new BandPowerVis();
+
+document
+  .getElementById("toggle-visualization")
+  .addEventListener("click", () => {
+    bandPowerVis.toggleVisualization();
+  });
