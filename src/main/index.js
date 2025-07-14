@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const tello = require("./tello.js");
+const WebSocket = require('ws');
 
 const isProduction =
   process.env.NODE_ENV === "production" || !process || !process.env || !process.env.NODE_ENV;
@@ -56,7 +57,7 @@ async function createWindow() {
     // Reload
     try {
       require("electron-reloader")(module);
-    } catch (_) {}
+    } catch (_) { }
     // Errors are thrown if the dev tools are opened
     // before the DOM is ready
     win.webContents.once("dom-ready", async () => {
@@ -80,26 +81,16 @@ async function createWindow() {
 
   /* Code to integrate BLE and Tello Drone */
 
+  // Electron native event listener for selecting a bluetooth device
+  // Purpose of this function is to get the callback function and send the device list to the renderer
   win.webContents.on("select-bluetooth-device", (event, deviceList, callback) => {
+    console.log("select-bluetooth-device");
     bleCallback = callback;
     event.preventDefault();
-    //console.log(deviceList);
+    console.log(deviceList);
     win.webContents.send("device_list", deviceList);
-    /*
-    deviceList.map((x) => {
-      console.log(x.deviceName);
-    });
-    */
+
     let result = null;
-    //selectBluetoothCallback = callback
-
-    /*
-    const result = deviceList.find((device) => {
-      return device.deviceName === MUSE_DEVICE_NAME;
-    });
-    */
-
-    //console.log(MuseClient)
 
     if (result) {
       callback(result.deviceId);
@@ -113,11 +104,11 @@ async function createWindow() {
   });
 
   setInterval(() => {
-    //console.log(tello.getState());
     let drone_state = tello.getState();
     win.webContents.send("drone_state", drone_state);
   }, 5000);
 
+  // This function triggers the connection to the selected BLE device
   ipcMain.on("select-ble-device", (event, selected_ble_device) => {
     console.log("device selected: ", selected_ble_device);
     if (bleCallback) {
@@ -125,33 +116,63 @@ async function createWindow() {
     }
   });
 
+  const ws = new WebSocket('ws://127.0.0.1:8765');
+
+  ws.on('open', function open() {
+    console.log('WebSocket connection opened');
+  });
+
+  ws.on('error', function error(err) {
+    console.error('WebSocket error:', err);
+  });
+
+  let lastCommandTime = 0;
+  const commandInterval = 3000; // 3 seconds
+
+  function sendCommand(command) {
+    const currentTime = Date.now();
+    if (currentTime - lastCommandTime >= commandInterval) {
+      ws.send(JSON.stringify(command));
+      console.log("Command sent:", command);
+      lastCommandTime = currentTime;
+    } else {
+      console.log("Command skipped to avoid spamming:", command);
+    }
+  }
+
   ipcMain.on("drone-up", (event, response) => {
     let recent_val = parseInt(response);
-    let upVal = recent_val > maxSpeed ? maxSpeed : recent_val < minSpeed ? minSpeed : recent_val;
-    console.log("drone up", upVal, "sent", response);
-    tello.up(upVal);
+    let rightVal = recent_val > maxSpeed ? maxSpeed : recent_val < minSpeed ? minSpeed : recent_val;
+    console.log("Sphero right", rightVal, "sent", response);
+    const moveCommand = { action: "move", distance: response, heading: 90 };//For Vex
+    sendCommand(moveCommand);
   });
 
   ipcMain.on("drone-down", (event, response) => {
     let recent_val = parseInt(response);
     let downVal = recent_val > maxSpeed ? maxSpeed : recent_val < minSpeed ? minSpeed : recent_val;
-    console.log("drone down", downVal, "sent", response);
-    tello.down(downVal);
+    console.log("Sphero Left", downVal, "sent", response);
+    const moveCommand = { action: "move", distance: response, heading: 270 };//For Vex
+    sendCommand(moveCommand);
   });
 
   ipcMain.on("drone-forward", (event, response) => {
     let recent_val = parseInt(response);
-    _maxSpeed = 80;
-    let val = recent_val > _maxSpeed ? _maxSpeed : recent_val < minSpeed ? minSpeed : recent_val;
-    console.log("drone forward", val, "sent", response);
-    tello.forward(val);
+    let forwardVal = recent_val > maxSpeed ? maxSpeed : recent_val < minSpeed ? minSpeed : recent_val;
+    console.log("drone forward", forwardVal, "sent", response);
+    const moveCommand = { action: "move", distance: response, heading: 0 };//For Vex
+    sendCommand(moveCommand);
   });
 
   ipcMain.on("drone-back", (event, response) => {
     let recent_val = parseInt(response);
-    let val = recent_val > maxSpeed ? maxSpeed : recent_val < minSpeed ? minSpeed : recent_val;
-    console.log("drone back", val, "sent", response);
-    tello.back(val);
+    let backVal = recent_val > maxSpeed ? maxSpeed : recent_val < minSpeed ? minSpeed : recent_val;
+    console.log("drone back", backVal, "sent", response);
+    // let val = recent_val > maxSpeed ? maxSpeed : recent_val < minSpeed ? minSpeed : recent_val;
+    // console.log("drone back", val, "sent", response);
+    const moveCommand = { action: "move", distance: response, heading: 180 };//For Vex
+    sendCommand(moveCommand);
+    // tello.back(val);
   });
 
   ipcMain.on("cw", (event, response) => {
@@ -170,27 +191,27 @@ async function createWindow() {
 
   let isUp = false;
 
-  ipcMain.on("manual-control", (event, response) => {
-    //console.log("index", response);
-    switch (response) {
-      case "takeoff":
-        isUp = true;
-        tello.takeoff();
-        break;
-      case "land":
-        isUp = true;
-        tello.land();
-        break;
-      case "up":
-        tello.up(20);
-        break;
-      case "down":
-        tello.down(20);
-        break;
-      default:
-        break;
-    }
-  });
+  // ipcMain.on("manual-control", (event, response) => {
+  //   //console.log("index", response);
+  //   switch (response) {
+  //     case "takeoff":
+  //       isUp = true;
+  //       tello.takeoff();
+  //       break;
+  //     case "land":
+  //       isUp = true;
+  //       tello.land();
+  //       break;
+  //     case "up":
+  //       tello.up(20);
+  //       break;
+  //     case "down":
+  //       tello.down(20);
+  //       break;
+  //     default:
+  //       break;
+  //   }
+  // });
 
   ipcMain.on("control-signal", (event, response) => {
     /*
@@ -209,6 +230,26 @@ async function createWindow() {
     }
     */
   });
+
+  ipcMain.on("send-command", (event, command) => {
+    console.log("Received command from renderer:", command);
+    sendCommand(command); // Use the existing sendCommand function
+  });
+
+  javascriptGenerator.forBlock["move"] = function (block) {
+    var distance = block.getFieldValue("DISTANCE");
+    var heading = block.getFieldValue("HEADING");
+    var code = `electronAPI.sendCommand({ action: "move", distance: ${distance}, heading: ${heading} });\n`;
+    console.log("Generated code for move block:", code);
+    return code;
+  };
+
+  javascriptGenerator.forBlock["led_control"] = function (block) {
+    var color = block.getFieldValue("COLOR");
+    var code = `electronAPI.sendCommand({ action: "led_on", color: "${color}" });\n`;
+    console.log("Generated code for LED block:", code);
+    return code;
+  };
 }
 
 // This method will be called when Electron has finished
